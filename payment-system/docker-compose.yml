@@ -1,0 +1,69 @@
+# buat services untuk order service dan 3 payment node
+services:
+  order:
+    # gunakan docker image yang sudah dibuat dengan 'docker build' (lihat file 'dockerfile')
+    build: .
+    # ekskusi 'order_service.py' saat container dijalankan
+    command: python order_service.py
+    # map port 8000 di container ke port 8000 di host
+    ports:
+      - "8000:8000"
+    # set environment variable 'PAYMENT_NODES' dengan daftar URL payment node yang akan digunakan oleh order service
+    environment:
+      PAYMENT_NODES: "http://payment-1:9000,http://payment-2:9000,http://payment-3:9000"
+    # pastikan order service dijalankan setelah semua payment node siap
+    depends_on:
+      - payment-1
+      - payment-2
+      - payment-3
+
+  # buat 3 payment node dengan konfigurasi yang berbeda (NODE_NAME, NODE_ID) untuk membedakan setiap node
+  payment-1:
+    # gunakan docker image yang sudah dibuat dengan 'docker build' (lihat file 'dockerfile')
+    build: .
+    # ekskusi 'payment_service.py' saat container dijalankan
+    command: python payment_service.py
+    # set environment variable untuk mengidentifikasi node ini (NODE_NAME, NODE_ID) dan daftar semua node yang ada (ALL_NODES) untuk komunikasi antar node
+    environment:
+      # NODE_NAME digunakan untuk mengidentifikasi nama node ini (misal: payment-1)
+      NODE_NAME: "payment-1"
+      # NODE_ID digunakan untuk mengidentifikasi ID unik node ini (misal: 1)
+      NODE_ID: "1"
+      # ALL_NODES berisi daftar semua node yang ada dalam format 'nama-node:id-node' yang dipisahkan koma (misal: payment-1:1,payment-2:2,payment-3:3)
+      ALL_NODES: "payment-1:1,payment-2:2,payment-3:3"
+    ports:
+      # map port 9000 di container ke port 9001 di host untuk node pertama
+      - "9001:9000"
+
+  payment-2:
+    # gunakan docker image yang sudah dibuat dengan 'docker build' (lihat file 'dockerfile')
+    build: .
+    # ekskusi 'payment_service.py' saat container dijalankan
+    command: python payment_service.py
+    # set environment variable untuk mengidentifikasi node ini (NODE_NAME, NODE_ID) dan daftar semua node yang ada (ALL_NODES) untuk komunikasi antar node
+    environment:
+      # NODE_NAME digunakan untuk mengidentifikasi nama node ini (misal: payment-2)
+      NODE_NAME: "payment-2"
+      # NODE_ID digunakan untuk mengidentifikasi ID unik node ini (misal: 2)
+      NODE_ID: "2"
+      # ALL_NODES berisi daftar semua node yang ada dalam format 'nama-node:id-node' yang dipisahkan koma (misal: payment-1:1,payment-2:2,payment-3:3)
+      ALL_NODES: "payment-1:1,payment-2:2,payment-3:3"
+    ports:
+      # map port 9000 di container ke port 9002 di host untuk node kedua    
+      - "9002:9000"
+
+  payment-3:
+    build: .
+    # ekskusi 'payment_service.py' saat container dijalankan
+    command: python payment_service.py
+    # set environment variable untuk mengidentifikasi node ini (NODE_NAME, NODE_ID) dan daftar semua node yang ada (ALL_NODES) untuk komunikasi antar node
+    environment:
+      # NODE_NAME digunakan untuk mengidentifikasi nama node ini (misal: payment-3)
+      NODE_NAME: "payment-3"
+      # NODE_ID digunakan untuk mengidentifikasi ID unik node ini (misal: 3)
+      NODE_ID: "3"
+      # ALL_NODES berisi daftar semua node yang ada dalam format 'nama-node:id-node' yang dipisahkan koma (misal: payment-1:1,payment-2:2,payment-3:3)
+      ALL_NODES: "payment-1:1,payment-2:2,payment-3:3"
+    ports:
+      # map port 9000 di container ke port 9003 di host untuk node ketiga
+      - "9003:9000"

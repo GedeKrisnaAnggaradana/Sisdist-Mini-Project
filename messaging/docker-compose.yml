@@ -1,0 +1,50 @@
+# Gunakan docker-compose untuk menjalankan RabbitMQ, worker, dan producer
+services:
+  # buat service untuk RabbitMQ yang akan digunakan sebagai message broker
+  rabbitmq:
+    # gunakan docker image resmi RabbitMQ dengan plugin management untuk memudahkan monitoring
+    image: rabbitmq:3-management
+    # set hostname untuk RabbitMQ agar bisa diakses oleh worker dan producer dengan nama 'rabbitmq'
+    hostname: rabbitmq
+    # map port 5672 untuk AMQP dan 15672 untuk Web UI RabbitMQ agar bisa diakses dari host
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Web UI
+
+  # buat service untuk worker yang akan memproses pesan dari RabbitMQ
+  worker:
+    # gunakan docker image yang sudah dibuat dengan 'docker build' (lihat file 'dockerfile')
+    build: .
+    # ekskusi 'worker.py' saat container dijalankan
+    command: python worker.py
+    # set environment variable untuk menghubungkan worker dengan RabbitMQ (RABBIT_HOST, QUEUE_NAME)
+    environment:
+      RABBIT_HOST: rabbitmq
+      REQ_QUEUE: payment_requests
+      RES_QUEUE: payment_results
+    depends_on:
+      - rabbitmq
+
+  # buat service untuk result consumer yang akan memproses hasil dari worker dan menyimpan ke database
+  result:
+    # gunakan docker image yang sudah dibuat dengan 'docker build' (lihat file 'dockerfile')
+    build: .
+    # ekskusi 'result_consumer.py' saat container dijalankan
+    command: python result_consumer.py
+    # set environment variable untuk menghubungkan result consumer dengan RabbitMQ (RABBIT_HOST, QUEUE_NAME)
+    environment:
+      RABBIT_HOST: rabbitmq
+      RES_QUEUE: payment_results
+    depends_on:
+      - rabbitmq
+
+  # buat service untuk producer yang akan mengirim pesan ke RabbitMQ
+  producer:
+    # gunakan docker image yang sudah dibuat dengan 'docker build' (lihat file 'dockerfile')
+    build: .
+    # producer dijalankan manual pakai `docker compose run ...`
+    environment:
+      RABBIT_HOST: rabbitmq
+      REQ_QUEUE: payment_requests
+    depends_on:
+      - rabbitmq

@@ -1,0 +1,14 @@
+# ambil docker image jenis 'small' yang sudah ada Python
+FROM python:3.11-slim
+
+# set 'wroking directory' di docker image
+WORKDIR /app
+
+# copy file 'requirements.txt' ke dalam docker image
+COPY requirements.txt .
+
+# install Python dependencies yang ada di 'requirements.txt' ke dalam docker image
+RUN pip install --no-cache-dir -r requirements.txt
+
+# copy semua file yang ada di direktori lokal ke dalam docker image
+COPY . .
