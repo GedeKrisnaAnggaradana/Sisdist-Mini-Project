@@ -1,5 +1,7 @@
 # Follow the instructions below to run:
-1. Start all services:
+1. Make sure you have Docker running on your system.<br>
+   Docker Desktop can be downloaded from [here](https://www.docker.com/get-started/).
+2. Start all services:
    ```
    docker compose up -d --build
 3. Check the log:
