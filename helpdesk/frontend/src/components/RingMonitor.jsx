@@ -51,9 +51,24 @@ export default function RingMonitor({ showToast }) {
                     </defs>
                     {positions.map((from, i) => {
                         const to = positions[(i + 1) % nodeCount];
+                        
+                        const dx = to.x - from.x;
+                        const dy = to.y - from.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        const dirX = dx / distance;
+                        const dirY = dy / distance;
+                        
+                        const nodeRadius = 60; // radius of node div + padding
+                        const startX = from.x + dirX * nodeRadius;
+                        const startY = from.y + dirY * nodeRadius;
+                        const endX = to.x - dirX * (nodeRadius + 5); // +5 for arrowhead length
+                        
+                        const endY = to.y - dirY * (nodeRadius + 5);
+
                         return (
-                            <line key={i} x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                                stroke="var(--text-secondary)" strokeWidth="2" strokeDasharray="6,4"
+                            <line key={i} x1={startX} y1={startY} x2={endX} y2={endY}
+                                stroke="var(--text-secondary)" strokeWidth="3" strokeDasharray="6,4"
                                 markerEnd="url(#arrowhead)" />
                         );
                     })}
@@ -82,8 +97,7 @@ export default function RingMonitor({ showToast }) {
                 })}
 
                 <div className="ring-center-label" style={{ left: centerX - 60, top: centerY - 12, width: 120 }}>
-                    Ring Topology<br />
-                    <strong style={{ color: 'var(--accent-primary)' }}>Chang-Roberts</strong>
+                    <strong style={{ color: 'var(--accent-primary)', fontSize: '1.1rem' }}>Ring Topology</strong>
                 </div>
             </div>
         );
