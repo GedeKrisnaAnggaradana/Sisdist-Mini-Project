@@ -35,3 +35,22 @@ export const formatDate = (isoString) => {
         hour: '2-digit', minute:'2-digit', second:'2-digit' 
     });
 };
+
+export const getComments = async (ticketId) => {
+    return await apiFetch(`/api/tickets/${ticketId}/comments`);
+};
+
+export const addComment = async (ticketId, payload) => {
+    return await apiFetch(`/api/tickets/${ticketId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    });
+};
+
+export const getTicket = async (id) => {
+    return await apiFetch(`/api/tickets/${id}`);
+};
+
+export const getTicketHistory = async (id) => {
+    return await apiFetch(`/api/tickets/${id}/history`);
+};

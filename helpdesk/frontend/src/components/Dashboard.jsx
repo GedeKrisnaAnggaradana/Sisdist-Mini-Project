@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch, formatDate } from '../api';
 
-export default function Dashboard() {
+export default function Dashboard({ onViewTicket }) {
     const [stats, setStats] = useState({});
     const [leader, setLeader] = useState(null);
     const [recentTickets, setRecentTickets] = useState([]);
@@ -129,11 +129,29 @@ export default function Dashboard() {
                             <tbody>
                                 {recentTickets.length > 0 ? recentTickets.map(t => (
                                     <tr key={t.ticket_id}>
-                                        <td><code>{t.ticket_id}</code></td>
-                                        <td>{t.title}</td>
+                                        <td>
+                                            <a 
+                                                href={`#ticket-${t.ticket_id}`} 
+                                                onClick={(e) => { e.preventDefault(); onViewTicket(t.ticket_id); }}
+                                                style={{ fontWeight: '600' }}
+                                            >
+                                                <code>{t.ticket_id}</code>
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <a 
+                                                href={`#ticket-${t.ticket_id}`} 
+                                                onClick={(e) => { e.preventDefault(); onViewTicket(t.ticket_id); }}
+                                                style={{ color: 'var(--text-primary)', fontWeight: '500', textDecoration: 'none' }}
+                                                onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                                onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                            >
+                                                {t.title}
+                                            </a>
+                                        </td>
                                         <td>{priorityBadge(t.priority)}</td>
                                         <td>{statusBadge(t.status)}</td>
-                                        <td>{t.assigned_to ? `Agent #${t.assigned_to}` : "—"}</td>
+                                        <td>{t.assigned_to_name || "—"}</td>
                                         <td>{formatDate(t.created_at)}</td>
                                     </tr>
                                 )) : (

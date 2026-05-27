@@ -1,14 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch, updateTicket, deleteTicket, formatDate } from '../api';
+import { apiFetch, deleteTicket, formatDate } from '../api';
 
-export default function Tickets({ showToast }) {
+export default function Tickets({ showToast, onViewTicket }) {
     const [tickets, setTickets] = useState([]);
     const [status, setStatus] = useState('');
     const [priority, setPriority] = useState('');
-    
-    // Modal Edit State
-    const [editingTicket, setEditingTicket] = useState(null);
-    const [editForm, setEditForm] = useState({ title: '', description: '', status: '', priority: '' });
     const [isDeleting, setIsDeleting] = useState(null); // ticket_id
 
     const loadTickets = async () => {
@@ -22,9 +18,14 @@ export default function Tickets({ showToast }) {
 
     useEffect(() => {
         loadTickets();
+        
+        // Polling daftar tiket untuk real-time update
+        const interval = setInterval(loadTickets, 5000);
+        return () => clearInterval(interval);
     }, [status, priority]);
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (e, id) => {
+        e.stopPropagation(); // mencegah modal detail terbuka saat mengklik hapus
         if (!window.confirm(`Yakin ingin menghapus tiket ${id}?`)) return;
         
         setIsDeleting(id);
@@ -35,28 +36,6 @@ export default function Tickets({ showToast }) {
             showToast(`Gagal menghapus tiket: ${resp.error.detail || resp.error.code}`, 'error');
         } else {
             showToast('Tiket berhasil dihapus!', 'success');
-            loadTickets();
-        }
-    };
-
-    const handleEditClick = (ticket) => {
-        setEditingTicket(ticket.ticket_id);
-        setEditForm({
-            title: ticket.title,
-            description: ticket.description,
-            status: ticket.status,
-            priority: ticket.priority
-        });
-    };
-
-    const handleEditSubmit = async (e) => {
-        e.preventDefault();
-        const resp = await updateTicket(editingTicket, editForm);
-        if (resp.error) {
-            showToast(`Gagal update tiket: ${resp.error.detail || resp.error.code}`, 'error');
-        } else {
-            showToast('Tiket berhasil diupdate!', 'success');
-            setEditingTicket(null);
             loadTickets();
         }
     };
@@ -109,17 +88,44 @@ export default function Tickets({ showToast }) {
                             <tbody>
                                 {tickets.length > 0 ? tickets.map(t => (
                                     <tr key={t.ticket_id}>
-                                        <td><code>{t.ticket_id}</code></td>
-                                        <td>{t.title}</td>
+                                        <td>
+                                            <a 
+                                                href={`#ticket-${t.ticket_id}`} 
+                                                onClick={(e) => { e.preventDefault(); onViewTicket(t.ticket_id, false); }}
+                                                style={{ fontWeight: '600' }}
+                                            >
+                                                <code>{t.ticket_id}</code>
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <a 
+                                                href={`#ticket-${t.ticket_id}`} 
+                                                onClick={(e) => { e.preventDefault(); onViewTicket(t.ticket_id, false); }}
+                                                style={{ color: 'var(--text-primary)', fontWeight: '500', textDecoration: 'none' }}
+                                                onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                                onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                            >
+                                                {t.title}
+                                            </a>
+                                        </td>
                                         <td>{priorityBadge(t.priority)}</td>
                                         <td>{statusBadge(t.status)}</td>
-                                        <td>{t.assigned_to ? `Agent #${t.assigned_to}` : "—"}</td>
+                                        <td>{t.assigned_to_name || "—"}</td>
                                         <td>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button className="icon-btn" title="Edit Tiket" onClick={() => handleEditClick(t)}>
+                                            <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                                                <button 
+                                                    className="icon-btn" 
+                                                    title="Buka & Edit" 
+                                                    onClick={() => onViewTicket(t.ticket_id, true)}
+                                                >
                                                     ✏️
                                                 </button>
-                                                <button className="icon-btn" title="Hapus Tiket" onClick={() => handleDelete(t.ticket_id)} disabled={isDeleting === t.ticket_id}>
+                                                <button 
+                                                    className="icon-btn" 
+                                                    title="Hapus Tiket" 
+                                                    onClick={(e) => handleDelete(e, t.ticket_id)} 
+                                                    disabled={isDeleting === t.ticket_id}
+                                                >
                                                     🗑️
                                                 </button>
                                             </div>
@@ -133,60 +139,6 @@ export default function Tickets({ showToast }) {
                     </div>
                 </div>
             </div>
-
-            {/* Modal Edit */}
-            {editingTicket && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-                    backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                    <div className="card" style={{ width: '400px', margin: '0', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div className="card-header">
-                            <h2>Edit Tiket: <code>{editingTicket}</code></h2>
-                            <button className="icon-btn" onClick={() => setEditingTicket(null)}>✖</button>
-                        </div>
-                        <div className="card-body">
-                            <form onSubmit={handleEditSubmit}>
-                                <div className="form-group">
-                                    <label>Judul Tiket</label>
-                                    <input type="text" className="form-input" required
-                                        value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Deskripsi Masalah</label>
-                                    <textarea className="form-input" rows="3" required
-                                        value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})}></textarea>
-                                </div>
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label>Status</label>
-                                        <select className="form-input" value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})}>
-                                            <option value="OPEN">Open</option>
-                                            <option value="IN_PROGRESS">In Progress</option>
-                                            <option value="RESOLVED">Resolved</option>
-                                            <option value="CLOSED">Closed</option>
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Prioritas</label>
-                                        <select className="form-input" value={editForm.priority} onChange={e => setEditForm({...editForm, priority: e.target.value})}>
-                                            <option value="LOW">Low</option>
-                                            <option value="MEDIUM">Medium</option>
-                                            <option value="HIGH">High</option>
-                                            <option value="CRITICAL">Critical</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-                                    <button type="button" className="btn" onClick={() => setEditingTicket(null)}>Batal</button>
-                                    <button type="submit" className="btn btn-primary">Simpan Perubahan</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

@@ -56,12 +56,22 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at  TIMESTAMP DEFAULT NOW()
 );
 
+-- Tabel TICKET_COMMENTS: menyimpan komentar untuk setiap tiket
+CREATE TABLE IF NOT EXISTS ticket_comments (
+    comment_id   SERIAL PRIMARY KEY,
+    ticket_id    VARCHAR(8) REFERENCES tickets(ticket_id) ON DELETE CASCADE,
+    commenter    VARCHAR(100) NOT NULL,
+    comment_text TEXT NOT NULL,
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
 -- Index untuk mempercepat query yang sering digunakan
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
 CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_notif_ticket ON notifications(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_comments_ticket ON ticket_comments(ticket_id);
 
 -- ============================================================
 -- Seed Data: Agen Helpdesk Awal

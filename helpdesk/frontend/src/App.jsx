@@ -5,12 +5,14 @@ import CreateTicket from './components/CreateTicket';
 import Agents from './components/Agents';
 import RingMonitor from './components/RingMonitor';
 import Notifications from './components/Notifications';
+import TicketDetailModal from './components/TicketDetailModal';
 import './index.css';
 
 export default function App() {
     const [activePage, setActivePage] = useState('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [toast, setToast] = useState(null);
+    const [selectedTicket, setSelectedTicket] = useState(null); // { id: '...', edit: boolean }
     
     // Theme state, default to light
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
@@ -78,9 +80,21 @@ export default function App() {
                     </div>
                 </header>
                 <div className="page-container">
-                    <ActiveComponent showToast={showToast} />
+                    <ActiveComponent 
+                        showToast={showToast} 
+                        onViewTicket={(id, edit = false) => setSelectedTicket({ id, edit })} 
+                    />
                 </div>
             </main>
+
+            {selectedTicket && (
+                <TicketDetailModal
+                    ticketId={selectedTicket.id}
+                    initialEditMode={selectedTicket.edit}
+                    onClose={() => setSelectedTicket(null)}
+                    showToast={showToast}
+                />
+            )}
 
             {toast && (
                 <div className="toast-container">
