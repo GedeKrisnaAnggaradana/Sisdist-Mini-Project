@@ -620,17 +620,17 @@ def rpc():
         limit = int(params.get("limit", 50))
         offset = int(params.get("offset", 0))
 
-        sql = "SELECT * FROM tickets WHERE 1=1"
+        sql = "SELECT t.*, a.name AS assigned_to_name FROM tickets t LEFT JOIN agents a ON t.assigned_to = a.agent_id WHERE 1=1"
         sql_params = []
 
         if status_filter:
-            sql += " AND status = %s"
+            sql += " AND t.status = %s"
             sql_params.append(status_filter)
         if priority_filter:
-            sql += " AND priority = %s"
+            sql += " AND t.priority = %s"
             sql_params.append(priority_filter)
 
-        sql += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        sql += " ORDER BY t.created_at DESC LIMIT %s OFFSET %s"
         sql_params.extend([limit, offset])
 
         try:
@@ -643,7 +643,7 @@ def rpc():
         ticket_id = params.get("ticket_id")
         try:
             row = db.query(
-                "SELECT * FROM tickets WHERE ticket_id = %s",
+                "SELECT t.*, a.name AS assigned_to_name FROM tickets t LEFT JOIN agents a ON t.assigned_to = a.agent_id WHERE t.ticket_id = %s",
                 (ticket_id,),
                 fetch_one=True,
             )
@@ -809,6 +809,59 @@ def rpc():
                 "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50"
             )
             return jsonify({"result": [serialize_row(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
+
+    if method == "get_comments":
+        ticket_id = params.get("ticket_id")
+        try:
+            rows = db.query(
+                "SELECT * FROM ticket_comments WHERE ticket_id = %s ORDER BY created_at ASC",
+                (ticket_id,),
+            )
+            return jsonify({"result": [serialize_row(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
+
+    if method == "add_comment":
+        # Hanya leader yang boleh menambahkan komentar baru
+        with state_lock:
+            local_is_leader = is_leader
+            l_id = leader_id
+            l_url = leader_url
+
+        if not local_is_leader:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "code": "NOT_LEADER",
+                            "leader_id": l_id,
+                            "leader_url": l_url,
+                        }
+                    }
+                ),
+                409,
+            )
+
+        ticket_id = params.get("ticket_id")
+        commenter = params.get("commenter", "anonymous")
+        comment_text = params.get("comment_text")
+
+        if not comment_text:
+            return jsonify({"error": {"code": "BAD_REQUEST", "detail": "Comment text is required"}}), 400
+
+        try:
+            row = db.execute(
+                """
+                INSERT INTO ticket_comments (ticket_id, commenter, comment_text)
+                VALUES (%s, %s, %s)
+                RETURNING *
+                """,
+                (ticket_id, commenter, comment_text),
+                returning=True,
+            )
+            return jsonify({"result": serialize_row(row)})
         except Exception as e:
             return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
 

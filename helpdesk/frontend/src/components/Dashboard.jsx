@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch, formatDate } from '../api';
 
-export default function Dashboard() {
+export default function Dashboard({ onViewTicket }) {
     const [stats, setStats] = useState({});
     const [leader, setLeader] = useState(null);
     const [recentTickets, setRecentTickets] = useState([]);
-    const [agents, setAgents] = useState([]);
     const [activeNodes, setActiveNodes] = useState({ active: 0, total: 0 });
 
     const loadData = async () => {
         // Fetch stats
         const sResp = await apiFetch("/api/stats");
         if (sResp.data) setStats(sResp.data);
-
-        // Fetch agents for name mapping
-        const aResp = await apiFetch("/api/agents");
-        if (aResp.data) setAgents(aResp.data);
 
         // Fetch leader
         const lResp = await apiFetch("/api/leader");
@@ -132,20 +127,34 @@ export default function Dashboard() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {recentTickets.length > 0 ? recentTickets.map(t => {
-                                    const agent = agents.find(a => a.agent_id === t.assigned_to);
-                                    const agentName = agent ? agent.name : (t.assigned_to ? `Agent #${t.assigned_to}` : "—");
-                                    return (
-                                        <tr key={t.ticket_id}>
-                                            <td><code>{t.ticket_id}</code></td>
-                                            <td>{t.title}</td>
-                                            <td>{priorityBadge(t.priority)}</td>
-                                            <td>{statusBadge(t.status)}</td>
-                                            <td>{agentName}</td>
-                                            <td>{formatDate(t.created_at)}</td>
-                                        </tr>
-                                    );
-                                }) : (
+                                {recentTickets.length > 0 ? recentTickets.map(t => (
+                                    <tr key={t.ticket_id}>
+                                        <td>
+                                            <a 
+                                                href={`#ticket-${t.ticket_id}`} 
+                                                onClick={(e) => { e.preventDefault(); onViewTicket(t.ticket_id); }}
+                                                style={{ fontWeight: '600' }}
+                                            >
+                                                <code>{t.ticket_id}</code>
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <a 
+                                                href={`#ticket-${t.ticket_id}`} 
+                                                onClick={(e) => { e.preventDefault(); onViewTicket(t.ticket_id); }}
+                                                style={{ color: 'var(--text-primary)', fontWeight: '500', textDecoration: 'none' }}
+                                                onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                                onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                            >
+                                                {t.title}
+                                            </a>
+                                        </td>
+                                        <td>{priorityBadge(t.priority)}</td>
+                                        <td>{statusBadge(t.status)}</td>
+                                        <td>{t.assigned_to_name || "—"}</td>
+                                        <td>{formatDate(t.created_at)}</td>
+                                    </tr>
+                                )) : (
                                     <tr><td colSpan="6" className="empty-state">Belum ada tiket</td></tr>
                                 )}
                             </tbody>

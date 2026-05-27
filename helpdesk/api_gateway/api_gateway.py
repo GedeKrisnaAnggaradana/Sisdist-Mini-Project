@@ -59,6 +59,12 @@ def rpc_call(base_url: str, method: str, params: dict, timeout=3.0):
     """
     payload = {"method": method, "params": params}
     r = requests.post(f"{base_url}/rpc", json=payload, timeout=timeout)
+    try:
+        data = r.json()
+        if isinstance(data, dict) and ("error" in data or "result" in data):
+            return data
+    except Exception:
+        pass
     r.raise_for_status()
     return r.json()
 
@@ -249,6 +255,34 @@ def get_ticket_history(ticket_id):
     chosen = pick_node()
     try:
         resp = rpc_call(chosen, "get_ticket_history", {"ticket_id": ticket_id})
+        return jsonify({"data": resp.get("result", [])})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
+
+
+# --- Comments ---
+@app.route("/api/tickets/<ticket_id>/comments", methods=["POST"])
+def add_comment(ticket_id):
+    """Tambah komentar baru ke tiket."""
+    body = request.get_json(force=True, silent=True) or {}
+    body["ticket_id"] = ticket_id
+    result = rpc_with_leader_retry("add_comment", body)
+
+    if isinstance(result, tuple) and len(result) == 3:
+        resp, status, metrics = result
+        if "result" in resp:
+            log(f"POST /api/tickets/{ticket_id}/comments [{metrics['routed_via']}]")
+            return jsonify({"data": resp["result"], "metrics": metrics}), 201
+        return jsonify(resp), status
+    return jsonify(result[0]), result[1]
+
+
+@app.route("/api/tickets/<ticket_id>/comments", methods=["GET"])
+def get_comments(ticket_id):
+    """Ambil daftar komentar tiket."""
+    chosen = pick_node()
+    try:
+        resp = rpc_call(chosen, "get_comments", {"ticket_id": ticket_id})
         return jsonify({"data": resp.get("result", [])})
     except Exception as e:
         return jsonify({"error": str(e)}), 503
