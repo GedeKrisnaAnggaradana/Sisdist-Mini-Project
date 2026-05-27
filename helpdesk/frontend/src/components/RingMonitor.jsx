@@ -6,7 +6,10 @@ export default function RingMonitor({ showToast }) {
     
     const loadNodes = async () => {
         const resp = await apiFetch("/api/leader");
-        if (resp.data) setNodes(resp.data);
+        if (resp.data) {
+            const sortedNodes = resp.data.sort((a, b) => (a.node_id || 0) - (b.node_id || 0));
+            setNodes(sortedNodes);
+        }
     };
 
     useEffect(() => {
@@ -39,7 +42,7 @@ export default function RingMonitor({ showToast }) {
         });
 
         return (
-            <div className="ring-visualization" style={{ position: 'relative', width: '600px', margin: '0 auto' }}>
+            <div className="ring-visualization" style={{ position: 'relative', width: '600px', height: '320px', margin: '0 auto' }}>
                 <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }} viewBox="0 0 600 320">
                     <defs>
                         <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
@@ -62,8 +65,15 @@ export default function RingMonitor({ showToast }) {
                     const roleLabel = !n.reachable ? "OFFLINE" : n.i_am_leader ? "👑 LEADER" : "FOLLOWER";
                     const nodeId = n.node_id || (i + 1);
 
+                    const leaderStyle = n.i_am_leader ? { 
+                        transform: 'scale(1.25)', 
+                        boxShadow: '0 0 15px 5px rgba(40, 167, 69, 0.4)',
+                        zIndex: 10,
+                        borderWidth: '3px'
+                    } : {};
+
                     return (
-                        <div key={nodeId} className={`ring-node ${role}`} style={{ left: pos.x - 50, top: pos.y - 50 }}>
+                        <div key={nodeId} className={`ring-node ${role}`} style={{ left: pos.x - 50, top: pos.y - 50, ...leaderStyle }}>
                             <span className="ring-node-id">{nodeId}</span>
                             <span className="ring-node-label">{n.node_name || `Node ${nodeId}`}</span>
                             <span className="ring-node-role">{roleLabel}</span>
@@ -91,7 +101,9 @@ export default function RingMonitor({ showToast }) {
                     <div className="ring-legend">
                         <span className="legend-item"><span className="legend-dot leader"></span> Leader</span>
                         <span className="legend-item"><span className="legend-dot follower"></span> Follower</span>
-                        <span className="legend-item"><span className="legend-dot offline"></span> Offline</span>
+                        {nodes.some(n => !n.reachable) && (
+                            <span className="legend-item"><span className="legend-dot offline"></span> Offline</span>
+                        )}
                     </div>
                 </div>
             </div>
