@@ -65,6 +65,19 @@ CREATE TABLE IF NOT EXISTS ticket_comments (
     created_at   TIMESTAMP DEFAULT NOW()
 );
 
+-- Tabel TICKET_ATTACHMENTS: menyimpan berkas lampiran tiket
+-- File disimpan sebagai base64-encoded TEXT di kolom file_data
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+    attachment_id SERIAL PRIMARY KEY,
+    ticket_id     VARCHAR(8) REFERENCES tickets(ticket_id) ON DELETE CASCADE,
+    filename      VARCHAR(255) NOT NULL,
+    content_type  VARCHAR(100) NOT NULL,
+    file_size     INTEGER NOT NULL,
+    file_data     TEXT NOT NULL,
+    uploaded_by   VARCHAR(100) NOT NULL,
+    created_at    TIMESTAMP DEFAULT NOW()
+);
+
 -- Index untuk mempercepat query yang sering digunakan
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
@@ -72,6 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_assigned ON tickets(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_notif_ticket ON notifications(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_comments_ticket ON ticket_comments(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_ticket ON ticket_attachments(ticket_id);
 
 -- ============================================================
 -- Seed Data: Agen Helpdesk Awal

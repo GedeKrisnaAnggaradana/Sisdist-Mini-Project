@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
-import { apiFetch } from '../api';
+import React, { useState, useRef } from 'react';
+import { apiFetch, uploadAttachment } from '../api';
 
 export default function CreateTicket({ showToast }) {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState('MEDIUM');
     const [author, setAuthor] = useState('');
+    const [attachmentFile, setAttachmentFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
+    const fileInputRef = useRef(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -22,11 +24,48 @@ export default function CreateTicket({ showToast }) {
 
         setLoading(false);
         if (resp.data) {
-            setResult({ success: true, data: resp.data, metrics: resp.metrics });
-            showToast("Tiket berhasil dibuat!", "success");
+            const newTicketId = resp.data.ticket_id;
+            let uploadSuccess = true;
+            let uploadErrorMsg = '';
+
+            // Handle optional file upload
+            if (attachmentFile) {
+                // Validasi ukuran
+                const MAX_SIZE = 5 * 1024 * 1024;
+                if (attachmentFile.size > MAX_SIZE) {
+                    showToast("Tiket dibuat, tetapi lampiran gagal diunggah: Ukuran melebihi 5 MB", "warning");
+                    uploadSuccess = false;
+                } else {
+                    const formData = new FormData();
+                    formData.append('file', attachmentFile);
+                    formData.append('uploaded_by', author);
+                    
+                    const uploadResp = await uploadAttachment(newTicketId, formData);
+                    if (uploadResp.error) {
+                        uploadSuccess = false;
+                        uploadErrorMsg = uploadResp.error.detail || "Gagal mengunggah berkas";
+                        showToast(`Tiket dibuat, tetapi gagal mengunggah lampiran: ${uploadErrorMsg}`, "warning");
+                    }
+                }
+            }
+
+            setResult({ 
+                success: true, 
+                data: resp.data, 
+                metrics: resp.metrics,
+                uploadStatus: attachmentFile ? (uploadSuccess ? 'success' : 'failed') : 'none'
+            });
+
+            if (uploadSuccess || !attachmentFile) {
+                showToast("Tiket berhasil dibuat!", "success");
+            }
+            
             setTitle('');
             setDescription('');
             setAuthor('');
+            setAttachmentFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            
         } else {
             setResult({ success: false, error: resp.error || "Gagal membuat tiket" });
             showToast("Gagal membuat tiket", "error");
@@ -70,6 +109,14 @@ export default function CreateTicket({ showToast }) {
                                     placeholder="Nama Anda" />
                             </div>
                         </div>
+                        <div className="form-group" style={{ marginTop: '16px', marginBottom: '24px' }}>
+                            <label>Lampiran Opsional (Maks. 5 MB)</label>
+                            <input type="file" className="form-input" 
+                                ref={fileInputRef}
+                                onChange={e => setAttachmentFile(e.target.files[0] || null)}
+                                style={{ padding: '8px 10px', backgroundColor: 'var(--bg-secondary)' }}
+                            />
+                        </div>
                         <button type="submit" className="btn btn-primary" disabled={loading}>
                             {loading ? "⏳ Mengirim..." : "🚀 Kirim Tiket"}
                         </button>
@@ -80,7 +127,9 @@ export default function CreateTicket({ showToast }) {
                             ✅ Tiket berhasil dibuat!<br/>
                             <strong>ID:</strong> {result.data.ticket_id}<br/>
                             <strong>Diproses oleh:</strong> Node {result.data.processed_by_node}<br/>
-                            {result.metrics && <span><strong>Routing:</strong> {result.metrics.routed_via} ({result.metrics.end_to_end_ms}ms)</span>}
+                            {result.metrics && <span><strong>Routing:</strong> {result.metrics.routed_via} ({result.metrics.end_to_end_ms}ms)</span>}<br/>
+                            {result.uploadStatus === 'success' && <span style={{ color: 'var(--color-primary)' }}>📎 Lampiran berhasil diunggah</span>}
+                            {result.uploadStatus === 'failed' && <span style={{ color: 'var(--color-warning)' }}>⚠️ Tiket dibuat, namun lampiran gagal diunggah</span>}
                         </div>
                     )}
                     {result && !result.success && (

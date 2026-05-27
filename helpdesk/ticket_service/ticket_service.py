@@ -865,6 +865,82 @@ def rpc():
         except Exception as e:
             return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
 
+    if method == "upload_attachment":
+        # Hanya leader yang boleh mengunggah berkas
+        with state_lock:
+            local_is_leader = is_leader
+            l_id = leader_id
+            l_url = leader_url
+
+        if not local_is_leader:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "code": "NOT_LEADER",
+                            "leader_id": l_id,
+                            "leader_url": l_url,
+                        }
+                    }
+                ),
+                409,
+            )
+
+        ticket_id = params.get("ticket_id")
+        filename = params.get("filename", "unknown")
+        content_type = params.get("content_type", "application/octet-stream")
+        file_size = int(params.get("file_size", 0))
+        file_data = params.get("file_data")
+        uploaded_by = params.get("uploaded_by", "anonymous")
+
+        MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+        if file_size > MAX_FILE_SIZE:
+            return jsonify({"error": {"code": "FILE_TOO_LARGE", "detail": f"Ukuran file melebihi batas {MAX_FILE_SIZE // (1024*1024)} MB"}}), 400
+
+        if not file_data:
+            return jsonify({"error": {"code": "BAD_REQUEST", "detail": "file_data is required"}}), 400
+
+        try:
+            row = db.execute(
+                """
+                INSERT INTO ticket_attachments (ticket_id, filename, content_type, file_size, file_data, uploaded_by)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING attachment_id, ticket_id, filename, content_type, file_size, uploaded_by, created_at
+                """,
+                (ticket_id, filename, content_type, file_size, file_data, uploaded_by),
+                returning=True,
+            )
+            log(f"📎 Attachment uploaded: {filename} ({file_size} bytes) for ticket {ticket_id}")
+            return jsonify({"result": serialize_row(row)})
+        except Exception as e:
+            log(f"❌ Error uploading attachment: {e}")
+            return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
+
+    if method == "get_attachments":
+        ticket_id = params.get("ticket_id")
+        try:
+            rows = db.query(
+                "SELECT attachment_id, ticket_id, filename, content_type, file_size, uploaded_by, created_at FROM ticket_attachments WHERE ticket_id = %s ORDER BY created_at DESC",
+                (ticket_id,),
+            )
+            return jsonify({"result": [serialize_row(r) for r in rows]})
+        except Exception as e:
+            return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
+
+    if method == "download_attachment":
+        attachment_id = params.get("attachment_id")
+        try:
+            row = db.query(
+                "SELECT * FROM ticket_attachments WHERE attachment_id = %s",
+                (int(attachment_id),),
+                fetch_one=True,
+            )
+            if not row:
+                return jsonify({"error": {"code": "NOT_FOUND", "detail": "Attachment not found"}}), 404
+            return jsonify({"result": serialize_row(row)})
+        except Exception as e:
+            return jsonify({"error": {"code": "DB_ERROR", "detail": str(e)}}), 500
+
     # Method tidak dikenali
     return jsonify({"error": {"code": "NO_SUCH_METHOD"}}), 400
 

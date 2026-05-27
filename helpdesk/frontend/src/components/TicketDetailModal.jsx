@@ -5,7 +5,10 @@ import {
     getComments, 
     addComment, 
     updateTicket, 
-    formatDate 
+    formatDate,
+    uploadAttachment,
+    getAttachments,
+    getAttachmentDownloadUrl
 } from '../api';
 
 export default function TicketDetailModal({ ticketId, initialEditMode = false, onClose, showToast }) {
@@ -23,13 +26,19 @@ export default function TicketDetailModal({ ticketId, initialEditMode = false, o
     const [isSaving, setIsSaving] = useState(false);
     const [isAddingComment, setIsAddingComment] = useState(false);
 
+    // Attachments state
+    const [attachments, setAttachments] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadName, setUploadName] = useState('');
+
     const loadAllData = async () => {
         setIsLoading(true);
         try {
-            const [tResp, hResp, cResp] = await Promise.all([
+            const [tResp, hResp, cResp, aResp] = await Promise.all([
                 getTicket(ticketId),
                 getTicketHistory(ticketId),
-                getComments(ticketId)
+                getComments(ticketId),
+                getAttachments(ticketId)
             ]);
 
             if (tResp.data) {
@@ -43,6 +52,7 @@ export default function TicketDetailModal({ ticketId, initialEditMode = false, o
             }
             if (hResp.data) setHistory(hResp.data);
             if (cResp.data) setComments(cResp.data);
+            if (aResp.data) setAttachments(aResp.data);
         } catch (err) {
             console.error("Error loading ticket detail data:", err);
             showToast("Gagal memuat detail tiket", "error");
@@ -91,6 +101,44 @@ export default function TicketDetailModal({ ticketId, initialEditMode = false, o
             const cResp = await getComments(ticketId);
             if (cResp.data) setComments(cResp.data);
         }
+    };
+
+    const handleFileUpload = async (e) => {
+        e.preventDefault();
+        const fileInput = e.target.querySelector('input[type="file"]');
+        const file = fileInput?.files?.[0];
+        if (!file) return;
+
+        // Validasi ukuran klien (maks 5 MB)
+        const MAX_SIZE = 5 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            showToast('Ukuran file melebihi batas 5 MB', 'error');
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('uploaded_by', uploadName.trim() || 'anonymous');
+
+        const resp = await uploadAttachment(ticketId, formData);
+        setIsUploading(false);
+
+        if (resp.error) {
+            showToast(`Gagal mengunggah: ${resp.error.detail || resp.error.code || resp.error}`, 'error');
+        } else {
+            showToast('Berkas berhasil diunggah!', 'success');
+            fileInput.value = '';
+            // Reload attachments
+            const aResp = await getAttachments(ticketId);
+            if (aResp.data) setAttachments(aResp.data);
+        }
+    };
+
+    const formatFileSize = (bytes) => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
     };
 
     if (isLoading) {
@@ -353,6 +401,78 @@ export default function TicketDetailModal({ ticketId, initialEditMode = false, o
                                 </button>
                             </div>
                         </form>
+
+                        {/* Attachments Section */}
+                        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                            <h3 style={colHeaderStyle}>📎 Lampiran</h3>
+                            
+                            {/* Attachments List */}
+                            <div style={{ marginBottom: '12px', maxHeight: '160px', overflowY: 'auto' }}>
+                                {attachments.length > 0 ? attachments.map(a => (
+                                    <div key={a.attachment_id} style={attachmentItemStyle}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                                            <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>
+                                                {a.content_type?.startsWith('image/') ? '🖼️' : 
+                                                 a.content_type === 'application/pdf' ? '📄' : '📁'}
+                                            </span>
+                                            <div style={{ minWidth: 0, flex: 1 }}>
+                                                <div style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {a.filename}
+                                                </div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                                    {formatFileSize(a.file_size)} • {a.uploaded_by} • {formatDate(a.created_at)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <a 
+                                            href={getAttachmentDownloadUrl(a.attachment_id)} 
+                                            className="btn btn-sm"
+                                            style={{ flexShrink: 0, fontSize: '0.75rem', padding: '4px 10px', textDecoration: 'none' }}
+                                            download
+                                        >
+                                            ⬇️ Unduh
+                                        </a>
+                                    </div>
+                                )) : (
+                                    <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '16px 0', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                                        Belum ada lampiran.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Upload Form */}
+                            <form onSubmit={handleFileUpload} style={{ 
+                                backgroundColor: 'var(--hover-overlay)', 
+                                padding: '12px', 
+                                borderRadius: 'var(--radius)', 
+                                border: '1px solid var(--border-color)' 
+                            }}>
+                                <div className="form-group" style={{ marginBottom: '8px' }}>
+                                    <input 
+                                        type="text" 
+                                        className="form-input" 
+                                        placeholder="Nama pengunggah..." 
+                                        value={uploadName} 
+                                        onChange={e => setUploadName(e.target.value)}
+                                        style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                                <div className="form-group" style={{ marginBottom: '8px' }}>
+                                    <input 
+                                        type="file" 
+                                        className="form-input"
+                                        required
+                                        style={{ padding: '6px 10px', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Maks. 5 MB</span>
+                                    <button type="submit" className="btn btn-primary btn-sm" disabled={isUploading}>
+                                        {isUploading ? 'Mengunggah...' : '📎 Unggah Berkas'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
 
                 </div>
@@ -497,4 +617,17 @@ const commentFormStyle = {
     borderTop: '1px solid var(--border-color)', 
     paddingTop: '16px', 
     flexShrink: 0
+};
+
+const attachmentItemStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    padding: '8px 10px',
+    backgroundColor: 'var(--hover-overlay)',
+    borderRadius: 'var(--radius)',
+    border: '1px solid var(--border-color)',
+    marginBottom: '6px',
+    fontSize: '0.85rem'
 };

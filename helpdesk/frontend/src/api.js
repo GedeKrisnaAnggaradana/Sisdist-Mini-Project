@@ -54,3 +54,26 @@ export const getTicket = async (id) => {
 export const getTicketHistory = async (id) => {
     return await apiFetch(`/api/tickets/${id}/history`);
 };
+
+export const uploadAttachment = async (ticketId, formData) => {
+    try {
+        const resp = await fetch(`/api/tickets/${ticketId}/attachments`, {
+            method: 'POST',
+            body: formData,
+            // Jangan set Content-Type header — browser akan otomatis set
+            // multipart/form-data dengan boundary yang benar
+        });
+        return await resp.json();
+    } catch (err) {
+        console.error(`API Error (upload attachment):`, err);
+        return { error: err.message };
+    }
+};
+
+export const getAttachments = async (ticketId) => {
+    return await apiFetch(`/api/tickets/${ticketId}/attachments`);
+};
+
+export const getAttachmentDownloadUrl = (attachmentId) => {
+    return `/api/attachments/${attachmentId}/download`;
+};

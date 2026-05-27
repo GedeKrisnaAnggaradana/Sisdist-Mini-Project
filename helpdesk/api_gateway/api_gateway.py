@@ -11,14 +11,17 @@
 import os
 import time
 import uuid
+import base64
+from io import BytesIO
 
 import requests
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file, Response
 
 # ============================================================
 # Inisialisasi Flask
 # ============================================================
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB max upload
 
 # ============================================================
 # Konfigurasi Ticket Service Nodes
@@ -284,6 +287,84 @@ def get_comments(ticket_id):
     try:
         resp = rpc_call(chosen, "get_comments", {"ticket_id": ticket_id})
         return jsonify({"data": resp.get("result", [])})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
+
+
+# --- Attachments ---
+@app.route("/api/tickets/<ticket_id>/attachments", methods=["POST"])
+def upload_attachment(ticket_id):
+    """Unggah berkas lampiran ke tiket.
+
+    Menerima multipart/form-data dengan field:
+        file: Berkas yang akan diunggah (maks 5 MB)
+        uploaded_by: Nama pengunggah
+    """
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    f = request.files['file']
+    if f.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    uploaded_by = request.form.get('uploaded_by', 'anonymous')
+
+    # Baca file dan encode ke base64
+    file_bytes = f.read()
+    file_b64 = base64.b64encode(file_bytes).decode('utf-8')
+
+    params = {
+        "ticket_id": ticket_id,
+        "filename": f.filename,
+        "content_type": f.content_type or 'application/octet-stream',
+        "file_size": len(file_bytes),
+        "file_data": file_b64,
+        "uploaded_by": uploaded_by,
+    }
+
+    result = rpc_with_leader_retry("upload_attachment", params)
+
+    if isinstance(result, tuple) and len(result) == 3:
+        resp, status, metrics = result
+        if "result" in resp:
+            log(f"POST /api/tickets/{ticket_id}/attachments → {resp['result'].get('filename', '?')} [{metrics['routed_via']}]")
+            return jsonify({"data": resp["result"], "metrics": metrics}), 201
+        return jsonify(resp), status
+    return jsonify(result[0]), result[1]
+
+
+@app.route("/api/tickets/<ticket_id>/attachments", methods=["GET"])
+def list_attachments(ticket_id):
+    """Daftar metadata lampiran tiket (tanpa konten file)."""
+    chosen = pick_node()
+    try:
+        resp = rpc_call(chosen, "get_attachments", {"ticket_id": ticket_id})
+        return jsonify({"data": resp.get("result", [])})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
+
+
+@app.route("/api/attachments/<int:attachment_id>/download", methods=["GET"])
+def download_attachment(attachment_id):
+    """Unduh berkas lampiran.
+
+    Mengembalikan binary file dengan Content-Type yang sesuai.
+    """
+    chosen = pick_node()
+    try:
+        resp = rpc_call(chosen, "download_attachment", {"attachment_id": attachment_id})
+        if "error" in resp:
+            return jsonify(resp), 404
+
+        data = resp.get("result", {})
+        file_bytes = base64.b64decode(data.get("file_data", ""))
+
+        return send_file(
+            BytesIO(file_bytes),
+            mimetype=data.get("content_type", "application/octet-stream"),
+            as_attachment=True,
+            download_name=data.get("filename", "download")
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 503
 
