@@ -3,6 +3,7 @@ import { apiFetch, updateTicket, deleteTicket, formatDate } from '../api';
 
 export default function Tickets({ showToast }) {
     const [tickets, setTickets] = useState([]);
+    const [agents, setAgents] = useState([]);
     const [status, setStatus] = useState('');
     const [priority, setPriority] = useState('');
     
@@ -11,17 +12,22 @@ export default function Tickets({ showToast }) {
     const [editForm, setEditForm] = useState({ title: '', description: '', status: '', priority: '' });
     const [isDeleting, setIsDeleting] = useState(null); // ticket_id
 
-    const loadTickets = async () => {
+    const loadData = async () => {
         let url = `/api/tickets?limit=50`;
         if (status) url += `&status=${status}`;
         if (priority) url += `&priority=${priority}`;
         
-        const resp = await apiFetch(url);
-        if (resp.data) setTickets(resp.data);
+        const [tResp, aResp] = await Promise.all([
+            apiFetch(url),
+            apiFetch('/api/agents')
+        ]);
+        
+        if (tResp.data) setTickets(tResp.data);
+        if (aResp.data) setAgents(aResp.data);
     };
 
     useEffect(() => {
-        loadTickets();
+        loadData();
     }, [status, priority]);
 
     const handleDelete = async (id) => {
@@ -35,7 +41,7 @@ export default function Tickets({ showToast }) {
             showToast(`Gagal menghapus tiket: ${resp.error.detail || resp.error.code}`, 'error');
         } else {
             showToast('Tiket berhasil dihapus!', 'success');
-            loadTickets();
+            loadData();
         }
     };
 
@@ -57,7 +63,7 @@ export default function Tickets({ showToast }) {
         } else {
             showToast('Tiket berhasil diupdate!', 'success');
             setEditingTicket(null);
-            loadTickets();
+            loadData();
         }
     };
 
@@ -89,7 +95,7 @@ export default function Tickets({ showToast }) {
                     <option value="HIGH">High</option>
                     <option value="CRITICAL">Critical</option>
                 </select>
-                <button className="btn btn-primary btn-sm" onClick={loadTickets}>🔍 Filter</button>
+                <button className="btn btn-primary btn-sm" onClick={loadData}>🔍 Filter</button>
             </div>
 
             <div className="card">
@@ -107,25 +113,29 @@ export default function Tickets({ showToast }) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {tickets.length > 0 ? tickets.map(t => (
-                                    <tr key={t.ticket_id}>
-                                        <td><code>{t.ticket_id}</code></td>
-                                        <td>{t.title}</td>
-                                        <td>{priorityBadge(t.priority)}</td>
-                                        <td>{statusBadge(t.status)}</td>
-                                        <td>{t.assigned_to ? `Agent #${t.assigned_to}` : "—"}</td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button className="icon-btn" title="Edit Tiket" onClick={() => handleEditClick(t)}>
-                                                    ✏️
-                                                </button>
-                                                <button className="icon-btn" title="Hapus Tiket" onClick={() => handleDelete(t.ticket_id)} disabled={isDeleting === t.ticket_id}>
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )) : (
+                                {tickets.length > 0 ? tickets.map(t => {
+                                    const agent = agents.find(a => a.agent_id === t.assigned_to);
+                                    const agentName = agent ? agent.name : (t.assigned_to ? `Agent #${t.assigned_to}` : "—");
+                                    return (
+                                        <tr key={t.ticket_id}>
+                                            <td><code>{t.ticket_id}</code></td>
+                                            <td>{t.title}</td>
+                                            <td>{priorityBadge(t.priority)}</td>
+                                            <td>{statusBadge(t.status)}</td>
+                                            <td>{agentName}</td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button className="icon-btn" title="Edit Tiket" onClick={() => handleEditClick(t)}>
+                                                        ✏️
+                                                    </button>
+                                                    <button className="icon-btn" title="Hapus Tiket" onClick={() => handleDelete(t.ticket_id)} disabled={isDeleting === t.ticket_id}>
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                }) : (
                                     <tr><td colSpan="6" className="empty-state">Tidak ada tiket ditemukan</td></tr>
                                 )}
                             </tbody>
